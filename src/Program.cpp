@@ -93,7 +93,7 @@ int main()
 
     cout
         << "Loaded sequence length: " << dna.length() << endl;
-    // cout << "DNA Sequence Preview: " << dna << endl;
+    // cout << "DNA Sequence Preview: " << dna << endl;s
 
     // 1. Segment sequence
     vector<Segment> segments = SegmentSequence2(dna);
