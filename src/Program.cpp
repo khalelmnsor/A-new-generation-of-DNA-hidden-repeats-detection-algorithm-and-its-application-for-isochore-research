@@ -84,7 +84,7 @@ int main()
                       "ACGTTCAGATCG"
                       "GTGGGTGGGTGG";*/
 
-    // string dna = "CATACCCCACATCAACATGGAGATCACACACCTCAACACGGAGATCACACACATCAACAT"; // eror ttt
+    // string dna = "CATACCCCACATCAACATGGAGATCACACACCTCAACACGGAGATCACACACATCAACAT"; // eror ttts
     string dna = "ACGT GTCA GATCTGACGTTCGAGTCTAGCTAGTCGATCGATGCTAGTCGATCGTAGCTAG"; // eror4*
     // string dna = ReadFNA("Data/gene.fna");
 
