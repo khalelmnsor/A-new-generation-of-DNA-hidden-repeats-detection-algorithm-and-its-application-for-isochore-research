@@ -8,14 +8,14 @@
 #include <chrono>
 #include <random>
 #include <unordered_map>
-
+#include <fstream>
+#include <iomanip>
 using namespace std;
 using CountTable = vector<map<char, int>>;
 
 // Parameters
-const int L = 200;        // Segment length
-const double tau1 = 0.25; // High p-value threshold
-const double tau2 = 0.05; // Low p-value threshold
+const int L = 840 * 2; // Segment length
+
 // const double alpha = 0.05;
 
 struct Segment
@@ -25,8 +25,7 @@ struct Segment
     string representativeWord;
     vector<array<int, 4>> positioncounts;
     double combinedPValue;
-    double pNull;
-    double nullParallelP;
+
     int startIndex;
     int length;
     double avg = 0.0;
@@ -74,6 +73,12 @@ void AnnotateSegmentsWithNull2(vector<Segment> &realSegs, const string &dna, int
 string FormatSequenceByK(const string &seq, int K);
 vector<string> SplitByLength(const string &dna);
 
+// ===== Analysis & Statistics =====
+void ExportSegmentsCSV_Simple(
+    const vector<Segment> &segs,
+    const string &filename,
+    const string &pipeline,
+    const string &type); // "real" or "null"
 int main()
 {
     // FIX: Removed '+' signs to allow implicit string literal concatenation
@@ -127,8 +132,7 @@ int main()
              << "  | canonical: " << nulls.canonicalRepresentativeWord << "\n";
 
         cout << "P-values   : real=" << s.combinedPValue
-             << " | null(parallel)=" << nulls.combinedPValue
-             << " | null(K-matched)=" << s.pNull << "\n";
+             << " | null(parallel)=" << nulls.combinedPValue;
 
         cout << "Strength   : score=" << s.strengthScore
              << " | class=" << s.strength
@@ -148,6 +152,50 @@ int main()
                     nulls.canonicalRepresentativeWord.size())
              << "\n";
     }
+
+    // ---- ANALYSIS ----
+    // ===============================
+    // ===============================
+    // AVG PIPELINE
+    // ===============================
+    vector<Segment> seg_avg_real = SegmentSequence1(dna);
+    vector<Segment> seg_avg_null = AnnotateSegmentsWithNull1(
+        seg_avg_real, dna, L / 10, 1);
+
+    // Export
+    ExportSegmentsCSV_Simple(
+        seg_avg_real,
+        "segments_real_avg.csv",
+        "avg",
+        "real");
+
+    ExportSegmentsCSV_Simple(
+        seg_avg_null,
+        "segments_null_avg.csv",
+        "avg",
+        "null");
+    // ===============================
+    // P-VALUE PIPELINE
+    // ===============================
+    vector<Segment> seg_p_real = SegmentSequence2(dna);
+    vector<Segment> seg_p_null = AnnotateSegmentsWithNull1(
+        seg_p_real, dna, L / 10, 2);
+
+    // Export
+    ExportSegmentsCSV_Simple(
+        seg_p_real,
+        "segments_real_pvalue.csv",
+        "pvalue",
+        "real");
+
+    ExportSegmentsCSV_Simple(
+        seg_p_null,
+        "segments_null_pvalue.csv",
+        "pvalue",
+        "null");
+
+    cout << "\nRunning Python visualization...\n";
+    system("py plot.py");
 
     return 0;
 }
@@ -545,7 +593,6 @@ double BinomialCoefficient(int n, int k)
 // Combine p-values using Fisher's method
 double CombinePValuesFisher(const vector<double> &pValues)
 {
-
     int k = pValues.size();
     double X = 0.0;
     for (double p : pValues)
@@ -1080,13 +1127,12 @@ vector<Segment> AnnotateSegmentsWithNull1(
     {
         double pReal = realSegs[i].combinedPValue;
         double pNull = nullSegs[i].combinedPValue;
-        realSegs[i].pNull = pNull;
         // יחס פשוט וברור
         double ratio = max(pNull, 1e-300) / max(pReal, 1e-300);
 
         realSegs[i].strengthScore = ratio;
 
-        if (ratio > 10)
+        if (ratio >= 10)
             realSegs[i].strength = "strong";
         else if (ratio > 1)
             realSegs[i].strength = "weak";
@@ -1146,7 +1192,6 @@ void AnnotateSegmentsWithNull2(
 
         // p-value של הסיגמנט המקביל ברנדומלי
         double pNull = ComputeSegmentPValue(rndChunks[i], K);
-        s.pNull = pNull;
         double ratio = max(pNull, 1e-300) / max(pReal, 1e-300);
 
         s.strengthScore = ratio;
@@ -1170,4 +1215,40 @@ string FormatSequenceByK(const string &seq, int K)
         out += seq[i];
     }
     return out;
+}
+// ANALISE
+
+#include <fstream>
+
+void ExportSegmentsCSV_Simple(
+    const vector<Segment> &segs,
+    const string &filename,
+    const string &pipeline,
+    const string &type // "real" or "null"
+)
+{
+    ofstream out(filename);
+    if (!out)
+    {
+        cerr << "Cannot write " << filename << endl;
+        return;
+    }
+
+    out << "pipeline,type,segment_id,start,length,AVG,pvalue,class\n";
+
+    for (int i = 0; i < (int)segs.size(); i++)
+    {
+        const Segment &s = segs[i];
+
+        out << pipeline << ","
+            << type << ","
+            << i << ","
+            << s.startIndex << ","
+            << s.length << ","
+            << s.avg << ","
+            << s.combinedPValue << ","
+            << s.strength << "\n";
+    }
+
+    out.close();
 }
