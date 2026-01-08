@@ -103,9 +103,10 @@ int main()
 
     // 1. Segment sequence
     vector<Segment> segments = SegmentSequence1(dna);
+    cout << "class the segment done done: " << endl;
     //////////////////
     vector<Segment> nullSegs = AnnotateSegmentsWithNull1(segments, dna, L / 10, 1);
-
+    cout << "randme Segment done: " << endl;
     // 2. Merge same-word segments
     // segments = MergeSameWordSegments(segments); ////////////////////////////////
 
@@ -158,22 +159,20 @@ int main()
     // ===============================
     // AVG PIPELINE
     // ===============================
-    vector<Segment> seg_avg_real = SegmentSequence1(dna);
-    vector<Segment> seg_avg_null = AnnotateSegmentsWithNull1(
-        seg_avg_real, dna, L / 10, 1);
 
     // Export
     ExportSegmentsCSV_Simple(
-        seg_avg_real,
+        segments,
         "segments_real_avg.csv",
         "avg",
         "real");
-
+    cout << "ANALYSIS11 done: " << endl;
     ExportSegmentsCSV_Simple(
-        seg_avg_null,
+        nullSegs,
         "segments_null_avg.csv",
         "avg",
         "null");
+    cout << "ANALYSIS12 done: " << endl;
     // ===============================
     // P-VALUE PIPELINE
     // ===============================
@@ -187,13 +186,13 @@ int main()
         "segments_real_pvalue.csv",
         "pvalue",
         "real");
-
+    cout << "ANALYSIS21 done: " << endl;
     ExportSegmentsCSV_Simple(
         seg_p_null,
         "segments_null_pvalue.csv",
         "pvalue",
         "null");
-
+    cout << "ANALYSIS22 done: " << endl;
     cout << "\nRunning Python visualization...\n";
     system("py plot.py");
 
@@ -1105,6 +1104,74 @@ vector<Segment> RunPipeline(const string &dna, int mode)
 
     return segs;
 }
+string GenerateRandomDNA_Global(
+    const string &dna,
+    int W,
+    double pseudo = 1e-6)
+{
+    int n = dna.size();
+    string rnd;
+    rnd.reserve(n);
+
+    array<int, 4> cnt{0, 0, 0, 0};
+
+    auto idx = [](char c)
+    {
+        if (c == 'A')
+            return 0;
+        if (c == 'C')
+            return 1;
+        if (c == 'G')
+            return 2;
+        if (c == 'T')
+            return 3;
+        return -1;
+    };
+
+    // init window
+    for (int i = 0; i <= W && i < n; i++)
+        if (idx(dna[i]) >= 0)
+            cnt[idx(dna[i])]++;
+
+    random_device rd;
+    mt19937 rng(rd());
+    uniform_real_distribution<double> U(0, 1);
+
+    for (int i = 0; i < n; i++)
+    {
+        double sum = cnt[0] + cnt[1] + cnt[2] + cnt[3] + 4 * pseudo;
+
+        array<double, 4> p{
+            (cnt[0] + pseudo) / sum,
+            (cnt[1] + pseudo) / sum,
+            (cnt[2] + pseudo) / sum,
+            (cnt[3] + pseudo) / sum};
+
+        double r = U(rng);
+        char c;
+        if (r < p[0])
+            c = 'A';
+        else if (r < p[0] + p[1])
+            c = 'C';
+        else if (r < p[0] + p[1] + p[2])
+            c = 'G';
+        else
+            c = 'T';
+
+        rnd.push_back(c);
+
+        // slide window
+        int L = i - W;
+        int R = i + W + 1;
+
+        if (L >= 0 && idx(dna[L]) >= 0)
+            cnt[idx(dna[L])]--;
+        if (R < n && idx(dna[R]) >= 0)
+            cnt[idx(dna[R])]++;
+    }
+
+    return rnd;
+}
 
 vector<Segment> AnnotateSegmentsWithNull1(
     vector<Segment> &realSegs,
@@ -1112,14 +1179,11 @@ vector<Segment> AnnotateSegmentsWithNull1(
     int W, int mode)
 {
     // 1️⃣ התפלגות מקומית
-    auto probs = ComputeLocalDistributions(dna, W);
-
-    // 2️⃣ יצירת DNA רנדומלי מקביל
-    string rndDNA = GenerateRandomDNA(probs);
-
+    string rndDNA = GenerateRandomDNA_Global(dna, W);
+    cout << "GenerateRandomDNA done: " << endl;
     // 3️⃣ הרצת אותו pipeline בדיוק
     vector<Segment> nullSegs = RunPipeline(rndDNA, mode);
-
+    cout << "random segment done: " << endl;
     // 4️⃣ השוואה אחד-לאחד
     int N = min(realSegs.size(), nullSegs.size());
 
